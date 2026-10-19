@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Rendered ```` ```mermaid ```` blocks in transcripts as diagrams. The Mermaid library loads only when a transcript contains one, diagrams that fail to parse stay as source, and blocks still streaming stay as source until the message finishes.
+
 ## [18.8.0] - 2026-10-07
 
 ### Changed

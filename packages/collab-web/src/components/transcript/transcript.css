@@ -353,6 +353,16 @@
 	line-height: 1.5;
 }
 
+/* Mermaid block upgraded to SVG (mermaid.ts): center it, cap it at the column width. */
+.tr-md pre.tr-mermaid[data-rendered] {
+	text-align: center;
+}
+
+.tr-md pre.tr-mermaid[data-rendered] svg {
+	max-width: 100%;
+	height: auto;
+}
+
 .tr-md blockquote {
 	margin: 8px 0;
 	padding: 2px 12px;

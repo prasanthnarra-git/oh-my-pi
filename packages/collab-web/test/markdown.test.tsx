@@ -33,6 +33,17 @@ describe("Transcript Markdown", () => {
 		expect(html).not.toContain("<img src=x");
 	});
 
+	it("tags mermaid fences for diagram rendering with their source escaped, leaving other fences alone", () => {
+		const html = renderMarkdown(
+			'```mermaid\nflowchart LR\n  A["<img src=x onerror=alert(1)>"] --> B\n```\n\n```ts\nconst x = 1;\n```',
+		);
+
+		expect(html).toContain('<pre class="tr-mermaid"><code class="language-mermaid">flowchart LR');
+		expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+		expect(html).not.toContain("<img src=x");
+		expect(html).toContain('<pre><code class="language-ts">const x = 1;');
+	});
+
 	it("strips span and text HTML tags but preserves their contents and inline text rendering", () => {
 		const html = renderMarkdown("<span></span><text>▃</text>");
 

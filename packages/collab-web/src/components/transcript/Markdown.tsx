@@ -2,9 +2,10 @@ import type { Token } from "@oh-my-pi/pi-utils/marked";
 import { Marked } from "@oh-my-pi/pi-utils/marked";
 import { listMayContinueAt } from "@oh-my-pi/pi-utils/marked-list";
 import type { ReactNode } from "react";
-import { memo, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { escapeHtml } from "../../lib/format";
 import { mathExtension } from "./math";
+import { MERMAID_CLASS, renderMermaidIn } from "./mermaid";
 
 function unescapeHtml(raw: string): string {
 	const parseCodePoint = (value: number): string => {
@@ -73,6 +74,11 @@ const md = new Marked({
 			const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
 			return `<a href="${escapeHtml(url)}"${titleAttr} target="_blank" rel="noopener">${inner}</a>`;
 		},
+		code({ text, lang }) {
+			// Other languages keep marked's default markup; mermaid fences are tagged for renderMermaidIn.
+			if (lang?.trim().split(/\s/)[0] !== "mermaid") return false;
+			return `<pre class="${MERMAID_CLASS}"><code class="language-mermaid">${escapeHtml(text)}</code></pre>\n`;
+		},
 	},
 	breaks: true,
 });
@@ -86,9 +92,18 @@ function renderMarkdown(text: string): string {
 	}
 }
 
+/**
+ * Settled Markdown. Mermaid blocks are upgraded to SVG after mount; while a
+ * block is still streaming ({@link StreamingMarkdown}) they stay source, so a
+ * half-written diagram is never parsed on each token.
+ */
 export const Markdown = memo(function Markdown({ text }: { text: string }): ReactNode {
 	const html = useMemo(() => renderMarkdown(text), [text]);
-	return <div className="tr-md" dangerouslySetInnerHTML={{ __html: html }} />;
+	const ref = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (ref.current && html.includes(MERMAID_CLASS)) void renderMermaidIn(ref.current);
+	}, [html]);
+	return <div ref={ref} className="tr-md" dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
 /**
@@ -191,7 +206,7 @@ export function renderStreamingMarkdown(
  * {@link Markdown} for a block that is still streaming: settled leading
  * blocks are rendered once and reused, so each token re-parses only the open
  * tail instead of the whole growing block. Output is identical to
- * {@link Markdown} for the same text.
+ * {@link Markdown} for the same text, except that mermaid blocks stay source.
  */
 export const StreamingMarkdown = memo(function StreamingMarkdown({ text }: { text: string }): ReactNode {
 	const prefixRef = useRef(NO_PREFIX);
