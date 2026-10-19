@@ -1,5 +1,5 @@
 import type { SessionHeader, SessionState } from "@oh-my-pi/pi-wire";
-import { LogOut, PanelRight } from "lucide-react";
+import { Menu, PanelRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo } from "react";
 import type { ConnectionPhase } from "../../lib/client";
@@ -23,7 +23,8 @@ export interface HeaderBarProps {
 	subCount: number;
 	railOpen: boolean;
 	onToggleRail(): void;
-	onLeave(): void;
+	/** Opens the session list (the off-canvas drawer on narrow screens). */
+	onShowSessions(): void;
 }
 
 /** Memoized on its snapshot fields, so streaming frames that leave them untouched skip it. */
@@ -35,7 +36,7 @@ export const HeaderBar = memo(function HeaderBar({
 	subCount,
 	railOpen,
 	onToggleRail,
-	onLeave,
+	onShowSessions,
 }: HeaderBarProps): ReactNode {
 	const title = header?.title ?? state?.sessionName ?? "session";
 	const usage = state?.contextUsage;
@@ -51,6 +52,15 @@ export const HeaderBar = memo(function HeaderBar({
 	return (
 		<header className="sh-header">
 			<div className="sh-header-left">
+				<button
+					type="button"
+					className="sh-btn sh-btn-icon ms-menu-btn"
+					onClick={onShowSessions}
+					title="sessions"
+					aria-label="show sessions"
+				>
+					<Menu size={14} />
+				</button>
 				<span className="sh-brand" aria-label="omp collab">
 					<OmpMark />
 					<span className="sh-brand-slash">/</span>
@@ -109,9 +119,6 @@ export const HeaderBar = memo(function HeaderBar({
 				>
 					<PanelRight size={14} />
 					{subCount > 0 && <span className="sh-badge">{subCount}</span>}
-				</button>
-				<button type="button" className="sh-btn sh-btn-icon" onClick={onLeave} title="leave session">
-					<LogOut size={14} />
 				</button>
 			</div>
 		</header>

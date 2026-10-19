@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Joined several collab sessions at once: a session list (a drawer on narrow screens) shows each room's connection, working, needs-input and view-only state, and every listed room stays connected while you switch between them. Links are saved in the browser's localStorage, so reopening the page rejoins them; a `#<link>` deep link adds its room to the list.
+- Rejoined rooms automatically: a room that ends retries with backoff, and after the page returns from the background or the network comes back, each room is checked with a small round trip and only rooms that do not answer rejoin, so healthy rooms do not download the session snapshot again.
+
 ## [18.8.0] - 2026-10-07
 
 ### Changed

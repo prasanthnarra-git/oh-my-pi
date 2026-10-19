@@ -1,81 +1,58 @@
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AgentDrawer } from "./components/agents/AgentDrawer";
 import { AgentsPanel } from "./components/agents/AgentsPanel";
+import { SessionList } from "./components/sessions/SessionList";
 import { Banners } from "./components/shell/Banners";
 import { Composer } from "./components/shell/Composer";
 import { ConnectScreen } from "./components/shell/ConnectScreen";
 import { HeaderBar } from "./components/shell/HeaderBar";
 import { Toasts } from "./components/shell/Toasts";
 import { Transcript } from "./components/transcript/Transcript";
-import { GuestClient } from "./lib/client";
+import type { GuestClient } from "./lib/client";
+import { SessionStore } from "./lib/sessions";
 import { useGuestSnapshot } from "./lib/use-guest";
 import type { ToolRenderHost } from "./tool-render";
 import "./components/shell/shell.css";
 
-const NAME_KEY = "omp.collab.name";
-
-interface Creds {
-	link: string;
-	name: string;
-}
-
-function storedName(): string {
-	try {
-		return localStorage.getItem(NAME_KEY) ?? "guest";
-	} catch {
-		return "guest";
-	}
-}
-
-/** Deep link = everything after the FIRST `#` (legacy links carry a second `#` inside the fragment). */
-function hashLink(): string | null {
+/**
+ * Deep link = everything after the FIRST `#` (legacy links carry a second `#` inside the fragment).
+ * The fragment is cleared once read so the room secret does not linger in the address bar or history.
+ */
+function takeHashLink(): string | null {
 	const href = window.location.href;
 	const i = href.indexOf("#");
 	if (i < 0 || i + 1 >= href.length) return null;
+	history.replaceState(null, "", window.location.pathname + window.location.search);
 	return href.slice(i + 1);
 }
 
 export function App(): ReactNode {
-	const [client, setClient] = useState<GuestClient | null>(null);
+	const [store] = useState(() => new SessionStore(localStorage));
+	const records = useSyncExternalStore(store.subscribe, store.getRecords);
+	const selectedId = useSyncExternalStore(store.subscribe, store.getSelectedId);
+	const [listOpen, setListOpen] = useState(false);
+	const [editingId, setEditingId] = useState<string | null>(null);
 	const [connectError, setConnectError] = useState<string | null>(null);
-	const credsRef = useRef<Creds | null>(null);
 
-	const connect = useCallback((link: string, name: string): void => {
-		let next: GuestClient;
-		try {
-			next = new GuestClient(link, name);
-		} catch (err) {
-			setConnectError(err instanceof Error ? err.message : String(err));
-			return;
-		}
-		next.connect();
-		try {
-			localStorage.setItem(NAME_KEY, name);
-		} catch {
-			// storage unavailable (private mode) — non-fatal
-		}
-		credsRef.current = { link, name };
-		window.location.hash = link;
-		setConnectError(null);
-		setClient(prev => {
-			prev?.close();
-			return next;
-		});
-	}, []);
+	useEffect(() => store.attachLifecycle(window), [store]);
 
-	const leave = useCallback((): void => {
-		setClient(prev => {
-			prev?.close();
-			return null;
-		});
-		history.replaceState(null, "", window.location.pathname + window.location.search);
-	}, []);
-
-	const rejoin = useCallback((): void => {
-		const creds = credsRef.current;
-		if (creds) connect(creds.link, creds.name);
-	}, [connect]);
+	// Deep link (my.omp.sh-style `#<link>`), on load and while open: adds the room to the list.
+	useEffect(() => {
+		const intake = (): void => {
+			const link = takeHashLink();
+			if (!link) return;
+			try {
+				store.add(link);
+				setConnectError(null);
+			} catch (err) {
+				setConnectError(err instanceof Error ? err.message : String(err));
+			}
+		};
+		intake();
+		window.addEventListener("hashchange", intake);
+		return () => window.removeEventListener("hashchange", intake);
+	}, [store]);
 
 	// Visual Viewport: adjust app height to fit screen space when mobile keyboard opens.
 	useEffect(() => {
@@ -97,29 +74,81 @@ export function App(): ReactNode {
 		};
 	}, []);
 
-	// Deep link: a page load with a hash auto-connects.
-	useEffect(() => {
-		const link = hashLink();
-		if (link) connect(link, storedName());
-	}, [connect]);
+	const select = useCallback(
+		(id: string): void => {
+			store.select(id);
+			setListOpen(false);
+		},
+		[store],
+	);
+	const showSessions = useCallback(() => setListOpen(true), []);
+
+	const selected = records.find(r => r.saved.id === selectedId) ?? null;
 
 	useEffect(() => {
-		if (!client) document.title = "omp collab";
-	}, [client]);
+		if (!selected) document.title = "omp collab";
+	}, [selected]);
 
-	if (!client) {
-		return <ConnectScreen defaultName={storedName()} error={connectError} onConnect={connect} />;
+	if (records.length === 0) {
+		return (
+			<ConnectScreen
+				defaultName={store.displayName}
+				error={connectError}
+				onConnect={(link, name) => {
+					try {
+						store.setDisplayName(name);
+						store.add(link);
+						setConnectError(null);
+					} catch (err) {
+						setConnectError(err instanceof Error ? err.message : String(err));
+					}
+				}}
+			/>
+		);
 	}
-	return <Session client={client} onLeave={leave} onRejoin={rejoin} />;
+
+	const listState = selected === null ? "page" : listOpen ? "open" : "closed";
+	return (
+		<div className="ms-root" data-list={listState}>
+			<aside className="ms-sidebar">
+				<SessionList
+					store={store}
+					records={records}
+					selectedId={selectedId}
+					editingId={editingId}
+					onEditingChange={setEditingId}
+					onSelect={select}
+				/>
+			</aside>
+			<div className="ms-backdrop" onClick={() => setListOpen(false)} />
+			<div className="ms-content">
+				{selected ? (
+					<Session
+						key={selected.saved.id}
+						client={selected.client}
+						onShowSessions={showSessions}
+						onRejoin={() => store.restart(selected.saved.id)}
+						onNewLink={() => {
+							setEditingId(selected.saved.id);
+							setListOpen(true);
+						}}
+					/>
+				) : (
+					<div className="ms-placeholder">Select a session</div>
+				)}
+			</div>
+		</div>
+	);
 }
 
 interface SessionProps {
 	client: GuestClient;
-	onLeave(): void;
+	onShowSessions(): void;
 	onRejoin(): void;
+	onNewLink(): void;
 }
 
-function Session({ client, onLeave, onRejoin }: SessionProps): ReactNode {
+function Session({ client, onShowSessions, onRejoin, onNewLink }: SessionProps): ReactNode {
 	const snap = useGuestSnapshot(client);
 	const [railOpen, setRailOpen] = useState(false);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -167,7 +196,7 @@ function Session({ client, onLeave, onRejoin }: SessionProps): ReactNode {
 				subCount={subCount}
 				railOpen={railOpen}
 				onToggleRail={toggleRail}
-				onLeave={onLeave}
+				onShowSessions={onShowSessions}
 			/>
 			<main className="sh-main">
 				<section className="sh-panel" data-rail={railOpen ? "true" : "false"}>
@@ -225,7 +254,7 @@ function Session({ client, onLeave, onRejoin }: SessionProps): ReactNode {
 				endedReason={snap.endedReason}
 				loading={snap.loading}
 				onRejoin={onRejoin}
-				onNewLink={onLeave}
+				onNewLink={onNewLink}
 			/>
 			<Toasts notices={snap.notices} />
 		</div>

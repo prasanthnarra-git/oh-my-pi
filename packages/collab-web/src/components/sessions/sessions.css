@@ -1,0 +1,268 @@
+/* Multi-session shell (ms-*). Token vars only — no raw colors.
+ * Wide screens: persistent session list on the left, session view beside it.
+ * Narrow screens (≤900px): the list is an off-canvas drawer from the left,
+ * opened from the header menu button; with nothing selected it is the page. */
+
+.ms-root {
+	position: relative;
+	display: flex;
+	height: var(--viewport-height, 100%);
+	background: var(--bg);
+	overflow: hidden;
+}
+
+.ms-sidebar {
+	flex: none;
+	width: 300px;
+	min-height: 0;
+	display: flex;
+	border-right: 1px solid var(--border);
+	background: var(--bg);
+}
+
+.ms-content {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+
+/* Only the selected session renders; the others stay connected in the store. */
+.ms-content > .sh-app {
+	height: 100%;
+}
+
+.sh-btn.ms-menu-btn {
+	display: none;
+}
+
+.ms-backdrop {
+	display: none;
+}
+
+.ms-list {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 12px 10px;
+	padding-top: calc(12px + env(safe-area-inset-top, 0px));
+	padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+	overflow-y: auto;
+}
+
+.ms-list-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 0 4px;
+}
+
+.ms-list-head-actions {
+	display: flex;
+	gap: 6px;
+}
+
+.ms-add {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-lg);
+	background: var(--panel);
+}
+
+.ms-items {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.ms-item {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	border-radius: var(--radius);
+}
+
+.ms-item:hover {
+	background: var(--hover);
+}
+
+.ms-item-selected,
+.ms-item-selected:hover {
+	background: var(--selected);
+}
+
+.ms-item-editing {
+	display: block;
+}
+
+.ms-item-main {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 9px 8px;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.ms-item-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.ms-item-title,
+.ms-item-meta {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.ms-item-title {
+	font-size: 13.5px;
+	color: var(--fg);
+}
+
+.ms-item-meta {
+	font-size: 11.5px;
+	color: var(--fg-faint);
+	font-family: var(--font-mono);
+}
+
+.ms-item-badges {
+	flex: none;
+	display: flex;
+	gap: 4px;
+}
+
+.ms-badge {
+	padding: 1px 6px;
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	font-size: 10.5px;
+	color: var(--fg-muted);
+}
+
+.ms-badge-working {
+	color: var(--live);
+	border-color: color-mix(in srgb, var(--live) 40%, transparent);
+}
+
+.ms-badge-input {
+	color: var(--warn);
+	border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+}
+
+.ms-item-edit {
+	opacity: 0.55;
+	margin-right: 4px;
+}
+
+.ms-item:hover .ms-item-edit,
+.ms-item-selected .ms-item-edit {
+	opacity: 1;
+}
+
+.ms-link-field {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--fg-faint);
+}
+
+.ms-link-field .sh-input {
+	flex: 1;
+	min-width: 0;
+}
+
+.ms-edit-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.ms-spacer {
+	flex: 1;
+}
+
+.ms-danger {
+	gap: 6px;
+	color: var(--err);
+}
+
+.ms-empty {
+	margin: 4px;
+	font-size: 13px;
+	color: var(--fg-faint);
+}
+
+.ms-name {
+	margin-top: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 0 4px;
+}
+
+.ms-placeholder {
+	height: 100%;
+	display: grid;
+	place-items: center;
+	padding: 24px;
+	text-align: center;
+	color: var(--fg-faint);
+	font-size: 14px;
+}
+
+@media (max-width: 900px) {
+	.ms-sidebar {
+		position: absolute;
+		inset: 0 auto 0 0;
+		z-index: 40;
+		width: min(340px, 88vw);
+		box-shadow: var(--rail-mobile-shadow);
+		transform: translateX(-102%);
+		transition: transform 180ms var(--ease-out);
+	}
+	.ms-root[data-list="open"] .ms-sidebar {
+		transform: none;
+	}
+	/* Nothing selected: the list is the whole page. */
+	.ms-root[data-list="page"] .ms-sidebar {
+		position: static;
+		width: 100%;
+		transform: none;
+		box-shadow: none;
+		border-right: 0;
+	}
+	.ms-root[data-list="page"] .ms-content {
+		display: none;
+	}
+	.ms-root[data-list="open"] .ms-backdrop {
+		display: block;
+		position: absolute;
+		inset: 0;
+		z-index: 35;
+		background: var(--backdrop);
+		animation: sh-fade-in 150ms ease-out;
+	}
+	.sh-btn.ms-menu-btn {
+		display: inline-flex;
+	}
+}
